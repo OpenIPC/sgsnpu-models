@@ -3,8 +3,10 @@
 # way: release assets are never uploaded from a workstation, so each one can be
 # traced to the commit and run that built it.
 #
-# On the project's own runner, which has the vendor toolchain: it may not be
-# published (scripts/sdk.sh), and only this workflow's dispatch reaches it.
+# On the project's own runner, which has the vendor toolchain ($SGS_TOOLCHAIN):
+# it may not be published (scripts/sdk.sh). The runner is registered for one job
+# at a time (--ephemeral), by whoever runs the release, and no workflow here
+# runs on a pull request.
 name: release
 
 on:
@@ -28,11 +30,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - run: pip install -q -r requirements-export.txt
+      - name: Export dependencies
+        run: |
+          uv venv -q --clear --python 3.11 "$RUNNER_TEMP/venv"
+          uv pip install -q --python "$RUNNER_TEMP/venv/bin/python" \
+            --index-strategy unsafe-best-match -r requirements-export.txt
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
 
       - name: Build
         run: bash scripts/build.sh "$SGS_TOOLCHAIN" out
@@ -42,7 +45,7 @@ jobs:
           bash scripts/fetch.sh coco.txt .cache/coco
           unzip -qo -d coco .cache/coco/val2017.zip
           unzip -qo -d coco .cache/coco/annotations_trainval2017.zip annotations/instances_val2017.json
-          bash scripts/points.sh out coco/val2017 coco/annotations/instances_val2017.json
+          bash scripts/points.sh out coco/val2017 coco/annotations/instances_val2017.json 24
 
       - name: Publish
         env:
