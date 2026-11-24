@@ -1,0 +1,11 @@
+# One model per line, built by scripts/build.sh and published by the release
+# workflow as <name>.img and <name>.json.
+#
+# name     weights               H    W    classes kept, as the checkpoint numbers
+#                                          them, in class-channel order; and what
+#                                          each kept channel is to majestic
+#                                          (human, vehicle, animal or other)
+#
+# The checkpoints are OpenIPC/xmnpu-models' own (train.yml there).
+yolov8n    yolov8n-lrelu-c8.pt   384  640  0,1,2,3,4,5,6,7  human,vehicle,vehicle,vehicle,vehicle,vehicle,animal,animal
+pvdn       pvdn.pt               352  640  0,1              human,vehicle

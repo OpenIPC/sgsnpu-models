@@ -1,0 +1,65 @@
+# Builds every model in models.txt from its pinned sources and publishes them
+# as a release. Run by hand (Actions -> release -> Run workflow) and only that
+# way: release assets are never uploaded from a workstation, so each one can be
+# traced to the commit and run that built it.
+#
+# On the project's own runner, which has the vendor toolchain: it may not be
+# published (scripts/sdk.sh), and only this workflow's dispatch reaches it.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create (e.g. v1). Must not exist yet.
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: [self-hosted, sgsnpu]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -q -r requirements-export.txt
+
+      - name: Build
+        run: bash scripts/build.sh "$SGS_TOOLCHAIN" out
+
+      - name: Operating points
+        run: |
+          bash scripts/fetch.sh coco.txt .cache/coco
+          unzip -qo -d coco .cache/coco/val2017.zip
+          unzip -qo -d coco .cache/coco/annotations_trainval2017.zip annotations/instances_val2017.json
+          bash scripts/points.sh out coco/val2017 coco/annotations/instances_val2017.json
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          {
+            echo "Built by run ${{ github.run_id }} from ${{ github.sha }}."
+            echo
+            echo "int8 (offline simulator) against FP32 on the eval images:"
+            echo
+            cat out/eval.md
+            echo
+            echo "What each preset of majestic's object detection gets from these models"
+            echo "(\`<model>.json\`, installed beside the model), int8 on COCO val2017:"
+            echo
+            cat out/points.md
+          } > notes.md
+          gh release create "$TAG" --target "${{ github.sha }}" --title "$TAG" \
+            --notes-file notes.md out/*.img out/yolov8n.json out/pvdn.json out/SHA256SUMS out/eval.md out/points.md
