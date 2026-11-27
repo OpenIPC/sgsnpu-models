@@ -6,7 +6,9 @@
 #   2. export each model in models.txt to head-less ONNX (export.py, this
 #      host's Python with requirements-export.txt installed)
 #   3. convert them with the vendor toolchain in its container (convert.sh)
-#   4. check the int8 models against FP32 (eval.py) and write SHA256SUMS
+#   4. the licence-plate models, calibrated on synthetic plates and checked
+#      against FP32 (lpr.sh)
+#   5. check the int8 models against FP32 (eval.py) and write SHA256SUMS
 set -euo pipefail
 src=$(cd "$(dirname "$0")/.." && pwd)
 zip=$(readlink -f "$1") out=${2:-$src/out}
@@ -30,5 +32,7 @@ grep -v '^#' "$src/models.txt" | while read -r name weights h w keep groups; do
 		"$h" "$w" /out/images/eval "/out/raw/$name" < /dev/null
 done
 
+bash "$src/scripts/lpr.sh" "$out" "$cache"
+
 python3 "$src/scripts/eval.py" "$out"
-cd "$out" && sha256sum ./*.img | sed 's# \./# #' > SHA256SUMS && cat SHA256SUMS
+cd "$out" && sha256sum ./*.img ./lpr_dec.bin | sed 's# \./# #' > SHA256SUMS && cat SHA256SUMS
