@@ -59,10 +59,15 @@ jobs:
             echo
             cat out/eval.md
             echo
+            echo "The licence-plate models, int8 (offline simulator) against FP32 on"
+            echo "synthetic plates:"
+            echo
+            cat out/lpr_eval.md
+            echo
             echo "What each preset of majestic's object detection gets from these models"
             echo "(\`<model>.json\`, installed beside the model), int8 on COCO val2017:"
             echo
             cat out/points.md
           } > notes.md
           gh release create "$TAG" --target "${{ github.sha }}" --title "$TAG" \
-            --notes-file notes.md out/*.img out/yolov8n.json out/pvdn.json out/SHA256SUMS out/eval.md out/points.md
+            --notes-file notes.md out/*.img out/lpr_dec.bin out/yolov8n.json out/pvdn.json out/SHA256SUMS out/eval.md out/lpr_eval.md out/points.md

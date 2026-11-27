@@ -24,4 +24,4 @@ grep -v '^#' "$src/models.txt" | while read -r name _ h w _ groups; do
 		"$out/$name.json" "$out/$name.points.md" "$w" "$h" "$groups"
 	{ echo "### $name"; echo; cat "$out/$name.points.md"; echo; } >> "$out/points.md"
 done
-cd "$out" && sha256sum ./*.img ./*.json | sed 's# \./# #' > SHA256SUMS && cat SHA256SUMS
+cd "$out" && shopt -s nullglob && sha256sum ./*.img ./*.bin ./*.json | sed 's# \./# #' > SHA256SUMS && cat SHA256SUMS
