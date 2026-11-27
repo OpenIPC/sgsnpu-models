@@ -6,8 +6,9 @@
 # The int8 side is the vendor's offline simulator (bit-identical to the
 # SSC378DE) through the same steps the camera takes; the FP32 side is
 # onnxruntime on the same inputs. The gate, on synthetic plates the FP32
-# models were never trained on: the spotter finds the same plate (IoU >= 0.6)
-# on at least PASS of them; int8 reads the same text on at least READ of the
+# models were never trained on: the spotter finds the plate where it was
+# pasted (IoU >= 0.5) on at least FIND of them in FP32, and int8 finds it on
+# at least PASS of those; int8 reads the same text on at least READ of the
 # ones FP32 reads right (on the rest FP32 is unsure, and an unsure read
 # flipping is not quantization error); and the recognizer's features keep a
 # mean cosine similarity of at least COS.
@@ -21,7 +22,11 @@ import onnxruntime as ort
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lpr  # noqa: E402
 
-PASS, READ, COS = 0.95, 0.90, 0.98
+FIND, PASS, READ, COS = 0.60, 0.95, 0.90, 0.98
+# The camera takes plates from 0.40; synthetic ones score lower in FP32 too
+# (a font and finish the spotter was not trained on), so here any plate the
+# spotter rates at all is compared.
+SPOT_SCORE = 0.10
 mode, out = sys.argv[1], sys.argv[2]
 ev, raw = f"{out}/lpr/eval", f"{out}/raw/lpr"
 G = lpr.tps_matrix()
@@ -50,14 +55,18 @@ def box_iou(a, b):
 spot, stn, rec = sess("lpr_spotter"), sess("lpr_stn"), sess("lpr_rec")
 dec = lpr.Decoder(f"{out}/lpr_dec.bin")
 truth = open(f"{ev}/plates.txt").read().split()
-same_box = same_text = fp_ok = q_ok = kept = 0
+where = np.load(f"{ev}/quads.npy")
+fp_found = both_found = same_text = fp_ok = q_ok = kept = 0
 cos = []
 for k, i in enumerate(ids):
     q = np.load(f"{raw}/spot/{i}.npz")
     x = lpr.nv12_to_rgb(*lpr.rgb_to_nv12(np.load(f"{ev}/spot/{i}.npy"))).astype(np.float32)
     o8, o16 = spot.run(None, {"image": x.transpose(2, 0, 1)[None]})
-    a, b = lpr.spot_best(o8[0], o16[0]), lpr.spot_best(q["obb_s8"], q["obb_s16"])
-    same_box += (a is None and b is None) or (a is not None and b is not None and box_iou(a, b) >= 0.6)
+    a = lpr.spot_best(o8[0], o16[0], SPOT_SCORE)
+    b = lpr.spot_best(q["obb_s8"], q["obb_s16"], SPOT_SCORE)
+    hit = lambda d: d is not None and box_iou(d, where[k]) >= 0.5  # noqa: E731
+    fp_found += hit(a)
+    both_found += hit(a) and hit(b)
 
     crop = np.load(f"{ev}/stn/{i}.npy")
     r = stn.run(None, {"image": norm(crop)})[0].reshape(-1)
@@ -74,12 +83,14 @@ for k, i in enumerate(ids):
     cos.append(float(f @ g / (np.linalg.norm(f) * np.linalg.norm(g) + 1e-12)))
 n = len(ids)
 rows = ["| check | FP32 against int8 (offline simulator) |", "|---|---|",
-        f"| spotter: the same plate | {same_box}/{n} |",
+        f"| spotter: the pasted plate found, FP32 | {fp_found}/{n} |",
+        f"| spotter: int8 finds it too | {both_found}/{fp_found} |",
         f"| recognizer: the same text where FP32 reads it right | {kept}/{fp_ok} |",
         f"| recognizer: features, mean cosine similarity | {np.mean(cos):.4f} |",
         f"| recognizer: the same text, all | {same_text}/{n} |",
         f"| synthetic plates read right, FP32 / int8 | {fp_ok}/{n} / {q_ok}/{n} |"]
-ok = same_box >= PASS * n and fp_ok and kept >= READ * fp_ok and np.mean(cos) >= COS
+ok = (fp_found >= FIND * n and both_found >= PASS * fp_found and fp_ok
+      and kept >= READ * fp_ok and np.mean(cos) >= COS)
 open(f"{out}/lpr_eval.md", "w").write("\n".join(rows) + "\n")
 print("\n".join(rows))
 sys.exit(0 if ok else 1)

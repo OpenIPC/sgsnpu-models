@@ -23,16 +23,19 @@ pics = sorted(glob.glob(f"{coco}/*.jpg"))
 rng = np.random.default_rng(seed)
 for d in ("spot", "stn", "rec"):
     os.makedirs(f"{dst}/{d}", exist_ok=True)
-texts = []
+texts, quads = [], []
 for k in range(n):
     bg = np.asarray(Image.open(pics[k % len(pics)]).convert("RGB"))
     img, quad, text = lpr.scene(rng, bg, font)
     texts.append(text)
-    np.save(f"{dst}/spot/{k:05d}.npy", lpr.window(img, quad, rng))
+    win, at = lpr.window(img, quad, rng)
+    np.save(f"{dst}/spot/{k:05d}.npy", win)
+    quads.append(at)
     y, uv = lpr.rgb_to_nv12(img)
     crop = lpr.crop601(y, uv, quad)
     np.save(f"{dst}/stn/{k:05d}.npy", crop)
     raw = stn.run(None, {"image": ((crop.astype(np.float32) - 128) / 128).transpose(2, 0, 1)[None]})[0]
     np.save(f"{dst}/rec/{k:05d}.npy", lpr.rectify(crop, G, raw.reshape(-1)))
 open(f"{dst}/plates.txt", "w").write("\n".join(texts) + "\n")
+np.save(f"{dst}/quads.npy", np.stack(quads))  # the plates in the spot windows
 print(f"{n} synthetic plates in {dst}")

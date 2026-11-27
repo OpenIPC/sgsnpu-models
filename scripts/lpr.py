@@ -251,7 +251,8 @@ def scene(rng, bg, font):
 
 def window(rgb, quad, rng, w=416, h=256):
     """A w x h (13:8) view of a vehicle-sized region around the plate, as the
-    camera's look at a vehicle frames it (the plate 12-35 % of the width)."""
+    camera's look at a vehicle frames it (the plate 12-35 % of the width),
+    and where the plate is in it."""
     x0, y0 = quad.min(0)
     x1, y1 = quad.max(0)
     ww = max(x1 - x0, 8) / rng.uniform(0.12, 0.35)
@@ -263,4 +264,5 @@ def window(rgb, quad, rng, w=416, h=256):
     pad[int(wh):int(wh) + H, int(ww):int(ww) + W] = rgb
     ox, oy = int(ww), int(wh)
     out = resize_bilinear(pad, cx - ww / 2 + ox, cy - wh / 2 + oy, cx + ww / 2 + ox, cy + wh / 2 + oy, w, h)
-    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
+    at = ((quad - [cx - ww / 2, cy - wh / 2]) * [w / ww, h / wh]).astype(np.float32)
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8), at
