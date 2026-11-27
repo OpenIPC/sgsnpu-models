@@ -40,11 +40,21 @@ jobs:
       - name: Build
         run: bash scripts/build.sh "$SGS_TOOLCHAIN" out
 
+      # A detector built byte for byte as in the last release keeps its
+      # operating points (reuse_points.sh): measuring them again is an hour of
+      # simulating COCO val2017 for the same numbers.
       - name: Operating points
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          bash scripts/fetch.sh coco.txt .cache/coco
-          unzip -qo -d coco .cache/coco/val2017.zip
-          unzip -qo -d coco .cache/coco/annotations_trainval2017.zip annotations/instances_val2017.json
+          prev=$(gh release list --limit 100 --json tagName --jq '.[].tagName' |
+            grep -E '^v[0-9]+$' | sort -V | tail -1 || true)
+          bash scripts/reuse_points.sh out "$prev"
+          if [ -s out/points.todo ]; then
+            bash scripts/fetch.sh coco.txt .cache/coco
+            unzip -qo -d coco .cache/coco/val2017.zip
+            unzip -qo -d coco .cache/coco/annotations_trainval2017.zip annotations/instances_val2017.json
+          fi
           bash scripts/points.sh out coco/val2017 coco/annotations/instances_val2017.json 24
 
       - name: Publish

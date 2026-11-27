@@ -4,13 +4,23 @@
 # The presets' operating points: each model's int8 detections on all of COCO
 # val2017 from the offline simulator, scored by operating_points.py. Writes
 # <out>/<name>.json, which majestic reads beside the model, and points.md.
+#
+# A model reuse_points.sh found unchanged since the last release (listed in
+# <out>/points.reused) keeps that release's points and is not simulated; with
+# every model reused, COCO is not read at all.
 set -euo pipefail
 src=$(cd "$(dirname "$0")/.." && pwd)
-out=$(readlink -f "$1") inst=$(readlink -f "$3") jobs=${4:-$(nproc)}
-IMAGES=$(readlink -f "$2"); export IMAGES
+out=$(readlink -f "$1") jobs=${4:-$(nproc)}
+reused() { [ -f "$out/points.reused" ] && grep -qx "$1" "$out/points.reused"; }
 mkdir -p "$out/dets"; : > "$out/points.md"
 grep -v '^#' "$src/models.txt" | while read -r name _ h w _ groups; do
 	[ -n "$name" ] || continue
+	if reused "$name"; then
+		{ echo "### $name"; echo; cat "$out/$name.points.md"; echo; } >> "$out/points.md"
+		continue
+	fi
+	inst=$(readlink -f "$3")
+	IMAGES=$(readlink -f "$2"); export IMAGES
 	rm -f "$out/dets/$name".*
 	seq 0 $((jobs - 1)) | xargs -P "$jobs" -I{} bash "$src/scripts/in-sdk.sh" "$out" \
 		python3 -W ignore /src/scripts/sim.py dets "$name" "$h" "$w" /images \
