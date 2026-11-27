@@ -42,7 +42,7 @@ The sources are the exported networks, `lpr-onnx-v1.tar.gz` in
 is not published. They are calibrated, and checked against FP32, on
 synthetic plates (DejaVu Sans Condensed Bold) pasted into COCO128 pictures,
 never on photographs of real plates (`scripts/lpr.sh`). On 2,000 real
-plates the int8 pipeline reads 97.45% exactly, FP32 97.55%.
+plates the int8 pipeline (v2) reads 97.6% exactly, FP32 97.55%.
 `lpr_eval.md` in a release is the check on the synthetic set.
 
 ## Releases
